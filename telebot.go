@@ -6,7 +6,7 @@
 //
 //	import (
 //		"time"
-//		tele "gopkg.in/telebot.v3"
+//		tele "github.com/heilkit/tg"
 //	)
 //
 //	func main() {
