@@ -24,7 +24,7 @@
 //
 //		b.Start()
 //	}
-package telebot
+package tg
 
 import "errors"
 

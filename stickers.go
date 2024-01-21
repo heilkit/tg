@@ -1,4 +1,4 @@
-package telebot
+package tg
 
 import (
 	"encoding/json"
@@ -171,7 +171,6 @@ func (b *Bot) DeleteSticker(sticker string) error {
 // up to 32 kilobytes in size.
 //
 // Animated sticker set thumbnail can't be uploaded via HTTP URL.
-//
 func (b *Bot) SetStickerSetThumb(to Recipient, s StickerSet) error {
 	files := make(map[string]File)
 	if s.PNG != nil {

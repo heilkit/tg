@@ -1,4 +1,4 @@
-package telebot
+package tg
 
 import (
 	"encoding/json"
@@ -184,6 +184,10 @@ type Video struct {
 	MIME      string `json:"mime_type,omitempty"`
 	FileName  string `json:"file_name,omitempty"`
 }
+
+// VideoModifier a simple modifier function, called when Video is sent.
+// Returns temporary files, which shall be removed after a Video sent
+type VideoModifier func(video *Video) (temporaries []string, err error)
 
 func (v *Video) MediaType() string {
 	return "video"
