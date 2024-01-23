@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -72,26 +70,8 @@ func formatPreview(tmpDir string, convert string, filename string) (string, erro
 	return tempFile.Name(), nil
 }
 
-func makeThumbnailAt(tmpDir string, convert string, ffmpeg string, filename string, at string) (string, error) {
-	tmpBig, err := os.CreateTemp(tmpDir, "*_big_preview_heilkit_tg.jpg")
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = tmpBig.Close()
-		_ = os.Remove(tmpBig.Name())
-	}()
-
-	output, err := exec.Command(ffmpeg, "-y", "-i", filename, "-ss", at, "-vframes", "1", tmpBig.Name()).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%v\n%s", err, string(output))
-	}
-
-	return formatPreview(tmpDir, convert, tmpBig.Name())
-}
-
 func makeThumbnailAtAlt(tmpDir string, ffmpeg string, filename string, at string) (string, error) {
-	tmpBig, err := os.CreateTemp(tmpDir, "*_graphomania_tg_big_preview.jpg")
+	tmpBig, err := os.CreateTemp(tmpDir, "*_heilkit_tg_big_preview.jpg")
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +118,7 @@ func wrapExecError(err error, output []byte) error {
 	return fmt.Errorf("err: %s\nout: %s", err.Error(), string(output))
 }
 
-func parseVideoModOptions(opts ...*Opt) *Opt {
+func parseOpts(opts ...*Opt) *Opt {
 	options := &Opt{}
 	if len(opts) != 0 {
 		options = opts[0]
@@ -176,6 +156,24 @@ func makeScaleRule(width int, height int) string {
 	return fmt.Sprintf("scale=if(gte(iw\\,ih)\\,min(%d\\,iw)\\,-2):if(lt(iw\\,ih)\\,min(%d\\,ih)\\,-2)", width, height)
 }
 
-func getFunctionName(i interface{}) string {
-	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+func isVideoTypeSupported(filename string) bool {
+	supportedTypes := []string{".mp4", ".mpeg4", ".mov"}
+	lower := strings.ToLower(filename)
+	for _, type_ := range supportedTypes {
+		if strings.HasSuffix(lower, type_) {
+			return true
+		}
+	}
+	return false
+}
+
+func isVideoTypeConvertableByCopy(filename string) bool {
+	supportedTypes := []string{".webm", ".m4v"}
+	lower := strings.ToLower(filename)
+	for _, type_ := range supportedTypes {
+		if strings.HasSuffix(lower, type_) {
+			return true
+		}
+	}
+	return false
 }

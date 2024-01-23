@@ -52,7 +52,13 @@ type Photo struct {
 	Width   int    `json:"width"`
 	Height  int    `json:"height"`
 	Caption string `json:"caption,omitempty"`
+
+	Mods []ImageModifier `json:"-"`
 }
+
+// ImageModifier a simple modifier function, called when Photo is sent.
+// Returns temporary files, which shall be removed after the Photo is sent.
+type ImageModifier = func(photo *Photo) (temporaries []string, err error)
 
 type photoSize struct {
 	File
@@ -60,6 +66,11 @@ type photoSize struct {
 	Width   int    `json:"width"`
 	Height  int    `json:"height"`
 	Caption string `json:"caption,omitempty"`
+}
+
+func (p Photo) With(mods ...ImageModifier) *Photo {
+	p.Mods = append(p.Mods, mods...)
+	return &p
 }
 
 func (p *Photo) MediaType() string {
@@ -185,11 +196,11 @@ type Video struct {
 	FileName    string `json:"file_name,omitempty"`
 
 	// internal
-	Mods []VideoModifier
+	Mods []VideoModifier `json:"-"`
 }
 
 // VideoModifier a simple modifier function, called when Video is sent.
-// Returns temporary files, which shall be removed after a Video sent
+// Returns temporary files, which shall be removed after the Video is sent.
 type VideoModifier func(video *Video) (temporaries []string, err error)
 
 func (v *Video) MediaType() string {

@@ -10,7 +10,7 @@ import (
 // Convert is a general purpose VideoModifier, converts a video to h264, could decrease its dimensions.
 // REQUIRES `ffmpeg` on the system, which could be passed via Opt.Convert.
 func Convert(opts ...*Opt) tg.VideoModifier {
-	options := parseVideoModOptions(opts...)
+	options := parseOpts(opts...)
 
 	scaleRule := makeScaleRule(options.Width, options.Height)
 	return func(video *tg.Video) (temporaries []string, err error) {
@@ -40,10 +40,30 @@ func Convert(opts ...*Opt) tg.VideoModifier {
 	}
 }
 
+// ConvertIfNeeded ensures a video is converted to a type supported by Telegram.
+// REQUIRES `ffmpeg` on the system, which could be passed via Opt.Convert.
+func ConvertIfNeeded(opts ...*Opt) tg.VideoModifier {
+	convert := Convert(opts...)
+	convertByCopy := ConvertByCopy(opts...)
+	return func(video *tg.Video) (temporaries []string, err error) {
+		filename := video.FileLocal
+		switch {
+		case isVideoTypeSupported(filename):
+			return nil, nil
+
+		case isVideoTypeConvertableByCopy(filename):
+			return convertByCopy(video)
+
+		default:
+			return convert(video)
+		}
+	}
+}
+
 // ConvertByCopy allows to upload .webm, .m4v and other video formats without re-encoding.
 // REQUIRES `ffmpeg` on the system.
 func ConvertByCopy(opts ...*Opt) tg.VideoModifier {
-	options := parseVideoModOptions(opts...)
+	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
 		tmpFile, err := os.CreateTemp(options.TempDir, "*_heilkit_tg.mp4")
@@ -69,7 +89,7 @@ func ConvertByCopy(opts ...*Opt) tg.VideoModifier {
 // EnsureMeta ensures, Telegram would process a file correctly.
 // REQUIRES `ffprobe` on the system, which could be passed via Opt.Convert
 func EnsureMeta(opts ...*Opt) tg.VideoModifier {
-	options := parseVideoModOptions(opts...)
+	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
 		_, _, err = getSetMetadata(video, options)
@@ -80,7 +100,7 @@ func EnsureMeta(opts ...*Opt) tg.VideoModifier {
 // EmbedMetadata into a file before sending.
 // REQUIRES `ffmpeg` on the system, which could be passed via Opt.Convert
 func EmbedMetadata(meta map[string]string, opts ...*Opt) tg.VideoModifier {
-	options := parseVideoModOptions(opts...)
+	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
 		tmpFile, err := os.CreateTemp(options.TempDir, "*_heilkit_tg.mp4")
@@ -109,7 +129,7 @@ func EmbedMetadata(meta map[string]string, opts ...*Opt) tg.VideoModifier {
 // ThumbnailFrom converts a picture to a 320x320 frame, suitable from Telegram video thumbnail.
 // REQUIRES `convert` on the system, could be passed via Opt.Convert.
 func ThumbnailFrom(filename string, opts ...*Opt) tg.VideoModifier {
-	options := parseVideoModOptions(opts...)
+	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
 		extraFile, err := formatPreview(options.TempDir, options.Convert, filename)
@@ -135,7 +155,7 @@ func ThumbnailAt(position interface{}, opts ...*Opt) tg.VideoModifier {
 		panic("ThumbnailAt: position type is not supported")
 	}
 
-	options := parseVideoModOptions(opts...)
+	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (filename []string, err error) {
 		defer func() {
@@ -162,7 +182,7 @@ func ThumbnailAt(position interface{}, opts ...*Opt) tg.VideoModifier {
 // Mute a video by creating a local muted copy.
 // REQUIRES `ffmpeg` on the system. Could be passed via Opt.Convert.
 func Mute(opts ...*Opt) tg.VideoModifier {
-	options := parseVideoModOptions(opts...)
+	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
 		if video == nil || video.FileLocal == "" {
