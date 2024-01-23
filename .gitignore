@@ -25,6 +25,7 @@ _testmain.go
 
 .idea
 .DS_Store
+testdata/
 coverage.txt
 
 # Terraform artifacts

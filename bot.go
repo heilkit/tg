@@ -14,7 +14,7 @@ import (
 )
 
 // NewBot does try to build a Bot with token `token`, which
-// is a secret API key assigned to particular bot.
+// is a secret API key assigned to a particular bot.
 func NewBot(pref Settings) (*Bot, error) {
 	if pref.Updates == 0 {
 		pref.Updates = 100
@@ -49,6 +49,11 @@ func NewBot(pref Settings) (*Bot, error) {
 		verbose:     pref.Verbose,
 		parseMode:   pref.ParseMode,
 		client:      client,
+		local:       pref.Local,
+	}
+
+	if pref.URL == "" {
+		bot.local = nil
 	}
 
 	if pref.Offline {
@@ -79,6 +84,7 @@ type Bot struct {
 	synchronous bool
 	verbose     bool
 	parseMode   ParseMode
+	local       Local
 	stop        chan chan struct{}
 	client      *http.Client
 	stopClient  chan struct{}
@@ -119,6 +125,10 @@ type Settings struct {
 
 	// Offline allows to create a bot without network for testing purposes.
 	Offline bool
+
+	// Local modifies bot some bot behaviours, mainly, File downloading.
+	// If the URL is "", ignored.
+	Local Local
 }
 
 var defaultOnError = func(err error, c Context) {
@@ -837,8 +847,13 @@ func (b *Bot) FileByID(fileID string) (File, error) {
 }
 
 // Download saves the file from Telegram servers locally.
-// Maximum file size to download is 20 MB.
+// The maximum file size to download is 20 MB.
+// Unless you use b.Local=true with your own API server (limit=2 GB).
 func (b *Bot) Download(file *File, localFilename string) error {
+	if b.local != nil {
+		return b.local.Download(b, file, localFilename)
+	}
+
 	reader, err := b.File(file)
 	if err != nil {
 		return err
@@ -868,7 +883,7 @@ func (b *Bot) File(file *File) (io.ReadCloser, error) {
 	}
 
 	url := b.URL + "/file/bot" + b.Token + "/" + f.FilePath
-	file.FilePath = f.FilePath // saving file path
+	file.FilePath = f.FilePath // saving the file path
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

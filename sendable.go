@@ -3,6 +3,7 @@ package tg
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 )
@@ -131,6 +132,18 @@ func (s *Sticker) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error)
 
 // Send delivers media through bot b to recipient.
 func (v *Video) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
+	for _, mod := range v.Mods {
+		temporaries, err := mod(v)
+		for _, tmp := range temporaries {
+			if tmp != "" {
+				defer os.Remove(tmp)
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	params := map[string]string{
 		"chat_id":   to.Recipient(),
 		"caption":   v.Caption,
@@ -147,7 +160,7 @@ func (v *Video) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	if v.Height != 0 {
 		params["height"] = strconv.Itoa(v.Height)
 	}
-	if v.Streaming {
+	if !v.NoStreaming {
 		params["supports_streaming"] = "true"
 	}
 

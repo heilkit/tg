@@ -178,11 +178,14 @@ type Video struct {
 	Duration int `json:"duration,omitempty"`
 
 	// (Optional)
-	Caption   string `json:"caption,omitempty"`
-	Thumbnail *Photo `json:"thumb,omitempty"`
-	Streaming bool   `json:"supports_streaming,omitempty"`
-	MIME      string `json:"mime_type,omitempty"`
-	FileName  string `json:"file_name,omitempty"`
+	Caption     string `json:"caption,omitempty"`
+	Thumbnail   *Photo `json:"thumb,omitempty"`
+	NoStreaming bool   `json:"supports_streaming,omitempty"`
+	MIME        string `json:"mime_type,omitempty"`
+	FileName    string `json:"file_name,omitempty"`
+
+	// internal
+	Mods []VideoModifier
 }
 
 // VideoModifier a simple modifier function, called when Video is sent.
@@ -191,6 +194,11 @@ type VideoModifier func(video *Video) (temporaries []string, err error)
 
 func (v *Video) MediaType() string {
 	return "video"
+}
+
+func (v Video) With(mods ...VideoModifier) *Video {
+	v.Mods = append(v.Mods, mods...)
+	return &v
 }
 
 func (v *Video) MediaFile() *File {
@@ -205,7 +213,7 @@ func (v *Video) InputMedia() InputMedia {
 		Width:     v.Width,
 		Height:    v.Height,
 		Duration:  v.Duration,
-		Streaming: v.Streaming,
+		Streaming: !v.NoStreaming,
 	}
 }
 
