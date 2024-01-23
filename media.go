@@ -203,6 +203,19 @@ type Video struct {
 // Returns temporary files, which shall be removed after the Video is sent.
 type VideoModifier func(video *Video) (temporaries []string, err error)
 
+func (v *Video) ToAnimation() *Animation {
+	return &Animation{
+		File:      v.File,
+		Width:     v.Width,
+		Height:    v.Height,
+		Duration:  v.Duration,
+		Caption:   v.Caption,
+		Thumbnail: v.Thumbnail,
+		MIME:      v.MIME,
+		FileName:  v.FileName,
+	}
+}
+
 func (v *Video) MediaType() string {
 	return "video"
 }
