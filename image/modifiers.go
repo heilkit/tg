@@ -38,9 +38,13 @@ func Convert(opts ...*Opt) tg.ImageModifier {
 func ConvertIfNeeded(opts ...*Opt) tg.ImageModifier {
 	convert := Convert(opts...)
 	return func(photo *tg.Photo) (temporaries []string, err error) {
-		if isTypeSupported(photo.FileLocal) {
-			return nil, nil
+		filename := photo.FileLocal
+		if !isTypeSupported(filename) {
+			return convert(photo)
 		}
-		return convert(photo)
+		if stat, err := os.Stat(filename); err != nil || stat.Size() > int64(10*(1<<20)) {
+			return convert(photo)
+		}
+		return nil, nil
 	}
 }
