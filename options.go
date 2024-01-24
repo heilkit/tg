@@ -83,6 +83,9 @@ type SendOptions struct {
 
 	// HasSpoiler marks the message as containing a spoiler.
 	HasSpoiler bool
+
+	// RemoveCaption for copyMessages.
+	RemoveCaption bool
 }
 
 func (og *SendOptions) copy() *SendOptions {
@@ -200,6 +203,10 @@ func (b *Bot) embedSendOptions(params map[string]string, opt *SendOptions) {
 
 	if opt.HasSpoiler {
 		params["spoiler"] = "true"
+	}
+
+	if opt.RemoveCaption {
+		params["remove_caption"] = "true"
 	}
 }
 

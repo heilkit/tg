@@ -40,10 +40,16 @@ type Inputtable interface {
 	// InputMedia returns already marshalled InputMedia type
 	// ready to be used in sending and editing media methods.
 	InputMedia() InputMedia
+
+	// WithCaption sets caption the media.
+	WithCaption(text string) Inputtable
 }
 
-// Album lets you group multiple media into a single message.
-type Album []Inputtable
+var _ Inputtable = &Animation{}
+var _ Inputtable = &Audio{}
+var _ Inputtable = &Photo{}
+var _ Inputtable = &Video{}
+var _ Inputtable = &Document{}
 
 // Photo object represents a single photo file.
 type Photo struct {
@@ -54,6 +60,11 @@ type Photo struct {
 	Caption string `json:"caption,omitempty"`
 
 	Mods []ImageModifier `json:"-"`
+}
+
+func (p *Photo) WithCaption(text string) Inputtable {
+	p.Caption = text
+	return p
 }
 
 // ImageModifier a simple modifier function, called when Photo is sent.
@@ -131,6 +142,11 @@ type Audio struct {
 	FileName  string `json:"file_name,omitempty"`
 }
 
+func (a *Audio) WithCaption(text string) Inputtable {
+	a.Caption = text
+	return a
+}
+
 func (a *Audio) MediaType() string {
 	return "audio"
 }
@@ -161,6 +177,11 @@ type Document struct {
 	MIME                 string `json:"mime_type"`
 	FileName             string `json:"file_name,omitempty"`
 	DisableTypeDetection bool   `json:"disable_content_type_detection,omitempty"`
+}
+
+func (d *Document) WithCaption(text string) Inputtable {
+	d.Caption = text
+	return d
 }
 
 func (d *Document) MediaType() string {
@@ -197,6 +218,11 @@ type Video struct {
 
 	// internal
 	Mods []VideoModifier `json:"-"`
+}
+
+func (v *Video) WithCaption(text string) Inputtable {
+	v.Caption = text
+	return v
 }
 
 // VideoModifier a simple modifier function, called when Video is sent.
@@ -254,6 +280,11 @@ type Animation struct {
 	Thumbnail *Photo `json:"thumb,omitempty"`
 	MIME      string `json:"mime_type,omitempty"`
 	FileName  string `json:"file_name,omitempty"`
+}
+
+func (a *Animation) WithCaption(text string) Inputtable {
+	a.Caption = text
+	return a
 }
 
 func (a *Animation) MediaType() string {
