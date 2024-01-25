@@ -16,10 +16,10 @@ import (
 	"time"
 )
 
-// Raw lets you call any method of Bot API manually.
+// RawNoSync lets you call any method of Bot API manually.
 // It also handles API errors, so you only need to unwrap
 // result field from json data.
-func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
+func (b *Bot) RawNoSync(method string, payload interface{}) ([]byte, error) {
 	url := b.URL + "/bot" + b.Token + "/" + method
 
 	var buf bytes.Buffer
@@ -68,7 +68,22 @@ func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
 	return data, extractOk(data)
 }
 
-func (b *Bot) sendFiles(method string, files map[string]File, params map[string]string) ([]byte, error) {
+// Raw lets you call any method of Bot API manually.
+// It also handles API errors, so you only need to unwrap
+// result field from json data.
+func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
+	switch m := payload.(type) {
+	case map[string]string:
+		if chatID, ok := m["chat_id"]; ok {
+			return b.scheduler.SyncFunc(1, chatID, func() ([]byte, error) {
+				return b.RawNoSync(method, payload)
+			})
+		}
+	}
+	return b.RawNoSync(method, payload)
+}
+
+func (b *Bot) sendFilesNoSync(method string, files map[string]File, params map[string]string) ([]byte, error) {
 	rawFiles := make(map[string]interface{})
 	for name, f := range files {
 		switch {
@@ -86,7 +101,7 @@ func (b *Bot) sendFiles(method string, files map[string]File, params map[string]
 	}
 
 	if len(rawFiles) == 0 {
-		return b.Raw(method, params)
+		return b.RawNoSync(method, params)
 	}
 
 	pipeReader, pipeWriter := io.Pipe()
@@ -128,12 +143,21 @@ func (b *Bot) sendFiles(method string, files map[string]File, params map[string]
 		return nil, ErrInternal
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, wrapError(err)
 	}
 
 	return data, extractOk(data)
+}
+
+func (b *Bot) sendFiles(method string, files map[string]File, params map[string]string) ([]byte, error) {
+	if chatID, ok := params["chat_id"]; ok {
+		return b.scheduler.SyncFunc(len(files), chatID, func() ([]byte, error) {
+			return b.sendFilesNoSync(method, files, params)
+		})
+	}
+	return b.sendFilesNoSync(method, files, params)
 }
 
 func addFileToWriter(writer *multipart.Writer, filename, field string, file interface{}) error {

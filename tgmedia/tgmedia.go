@@ -17,7 +17,7 @@ func isOneOf(item string, what []string) bool {
 }
 
 // FromDisk is not the best way to upload media to Telegram servers, but it has OK defaults.
-func FromDisk(filename string, opts ...interface{}) tg.Media {
+func FromDisk(filename string, opts ...interface{}) tg.Inputtable {
 	imageOpt := &image.Opt{}
 	imageMods := []tg.ImageModifier{}
 	videoOpt := &video.Opt{}

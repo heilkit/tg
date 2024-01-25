@@ -3,6 +3,7 @@ package tg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/heilkit/tg/scheduler"
 	"io"
 	"log"
 	"net/http"
@@ -34,6 +35,9 @@ func NewBot(pref Settings) (*Bot, error) {
 	if pref.OnError == nil {
 		pref.OnError = defaultOnError
 	}
+	if pref.Scheduler == nil {
+		pref.Scheduler = scheduler.Nil()
+	}
 
 	bot := &Bot{
 		Token:   pref.Token,
@@ -50,6 +54,7 @@ func NewBot(pref Settings) (*Bot, error) {
 		parseMode:   pref.ParseMode,
 		client:      client,
 		local:       pref.Local,
+		scheduler:   pref.Scheduler,
 	}
 
 	if pref.URL == "" {
@@ -85,13 +90,14 @@ type Bot struct {
 	verbose     bool
 	parseMode   ParseMode
 	local       Local
+	scheduler   scheduler.Scheduler
 	stop        chan chan struct{}
 	client      *http.Client
 	stopClient  chan struct{}
 }
 
-// Settings represents a utility struct for passing certain
-// properties of a bot around and is required to make bots.
+// Settings represent a utility struct for passing certain
+// properties of a bot around and are required to make bots.
 type Settings struct {
 	URL   string
 	Token string
@@ -129,6 +135,10 @@ type Settings struct {
 	// Local modifies bot some bot behaviours, mainly, File downloading.
 	// If the URL is "", ignored.
 	Local Local
+
+	// API quota compliant scheduler, if nil => all requests would be sent right away.
+	// https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
+	Scheduler scheduler.Scheduler
 }
 
 var defaultOnError = func(err error, c Context) {
