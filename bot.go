@@ -369,6 +369,28 @@ func (b *Bot) SendAlbum(to Recipient, album Album, opts ...interface{}) ([]Messa
 					thumbnailRepr = "attach://thumbnail" + strconv.Itoa(i)
 					files["thumbnail"+strconv.Itoa(i)] = media.Thumbnail.File
 				}
+
+			case *Animation:
+				v := media.ToVideo()
+				for _, mod := range media.Mods {
+					temporaries, err := mod(v)
+					for _, tmp := range temporaries {
+						if tmp != "" {
+							defer os.Remove(tmp)
+						}
+					}
+					if err != nil {
+						return nil, err
+					}
+				}
+				media = v.ToAnimation()
+				med = media
+				file = &media.File
+				if media.Thumbnail != nil {
+					thumbnailRepr = "attach://thumbnail" + strconv.Itoa(i)
+					files["thumbnail"+strconv.Itoa(i)] = media.Thumbnail.File
+				}
+
 			}
 
 			repr = "attach://" + strconv.Itoa(i)

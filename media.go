@@ -13,7 +13,7 @@ type Media interface {
 	MediaFile() *File
 }
 
-// InputMedia represents a composite InputMedia struct that is
+// InputMedia represents a composite InputMedia struct
 // used by Telebot in sending and editing media methods.
 type InputMedia struct {
 	Type                 string   `json:"type"`
@@ -37,7 +37,7 @@ type InputMedia struct {
 type Inputtable interface {
 	Media
 
-	// InputMedia returns already marshalled InputMedia type
+	// InputMedia returns already marshaled InputMedia type
 	// ready to be used in sending and editing media methods.
 	InputMedia() InputMedia
 
@@ -201,6 +201,10 @@ func (d *Document) InputMedia() InputMedia {
 	}
 }
 
+// VideoModifier a simple modifier function, called when Video is sent.
+// Returns temporary files, which shall be removed after the Video is sent.
+type VideoModifier func(video *Video) (temporaries []string, err error)
+
 // Video object represents a video file.
 type Video struct {
 	File
@@ -225,12 +229,8 @@ func (v *Video) WithCaption(text string) Inputtable {
 	return v
 }
 
-// VideoModifier a simple modifier function, called when Video is sent.
-// Returns temporary files, which shall be removed after the Video is sent.
-type VideoModifier func(video *Video) (temporaries []string, err error)
-
 func (v *Video) ToAnimation() *Animation {
-	return &Animation{
+	a := &Animation{
 		File:      v.File,
 		Width:     v.Width,
 		Height:    v.Height,
@@ -239,7 +239,13 @@ func (v *Video) ToAnimation() *Animation {
 		Thumbnail: v.Thumbnail,
 		MIME:      v.MIME,
 		FileName:  v.FileName,
+		Mods:      v.Mods,
 	}
+	// If you don't do this, Telegram acts like a 'person with developmental disabilities'. [Edited by IDEA]
+	if a.FileName == "" {
+		a.FileName = "heilkit.mp4"
+	}
+	return a
 }
 
 func (v *Video) MediaType() string {
@@ -280,6 +286,24 @@ type Animation struct {
 	Thumbnail *Photo `json:"thumb,omitempty"`
 	MIME      string `json:"mime_type,omitempty"`
 	FileName  string `json:"file_name,omitempty"`
+
+	// internal
+	Mods []VideoModifier `json:"-"`
+}
+
+func (a *Animation) ToVideo() *Video {
+	return &Video{
+		File:        a.File,
+		Width:       a.Width,
+		Height:      a.Height,
+		Duration:    a.Duration,
+		Caption:     a.Caption,
+		Thumbnail:   a.Thumbnail,
+		NoStreaming: false,
+		MIME:        a.MIME,
+		FileName:    a.FileName,
+		Mods:        a.Mods,
+	}
 }
 
 func (a *Animation) WithCaption(text string) Inputtable {
