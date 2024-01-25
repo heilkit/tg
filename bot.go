@@ -55,6 +55,7 @@ func NewBot(pref Settings) (*Bot, error) {
 		client:      client,
 		local:       pref.Local,
 		scheduler:   pref.Scheduler,
+		retries:     pref.Retries,
 	}
 
 	if pref.URL == "" {
@@ -94,6 +95,7 @@ type Bot struct {
 	stop        chan chan struct{}
 	client      *http.Client
 	stopClient  chan struct{}
+	retries     int
 }
 
 // Settings represent a utility struct for passing certain
@@ -139,6 +141,9 @@ type Settings struct {
 	// API quota compliant scheduler, if nil => all requests would be sent right away.
 	// https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
 	Scheduler scheduler.Scheduler
+
+	// Retries on failed file upload/download requests or 429 (too many requests).
+	Retries int
 }
 
 var defaultOnError = func(err error, c Context) {

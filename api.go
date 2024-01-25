@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -68,10 +69,7 @@ func (b *Bot) RawNoSync(method string, payload interface{}) ([]byte, error) {
 	return data, extractOk(data)
 }
 
-// Raw lets you call any method of Bot API manually.
-// It also handles API errors, so you only need to unwrap
-// result field from json data.
-func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
+func (b *Bot) rawWithScheduling(method string, payload interface{}) ([]byte, error) {
 	switch m := payload.(type) {
 	case map[string]string:
 		if chatID, ok := m["chat_id"]; ok {
@@ -81,6 +79,26 @@ func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
 		}
 	}
 	return b.RawNoSync(method, payload)
+}
+
+func (b *Bot) rawWithRetries(method string, payload interface{}, try int, lastRet []byte, lastError error) ([]byte, error) {
+	if try > b.retries {
+		return lastRet, lastError
+	}
+	ret, err := b.rawWithScheduling(method, payload)
+	var floodErr *FloodError
+	if errors.As(err, &floodErr) {
+		b.OnError(err, nil)
+		time.Sleep(time.Second * time.Duration(floodErr.RetryAfter))
+		return b.rawWithRetries(method, payload, try+1, ret, err)
+	}
+
+	return ret, err
+}
+
+// Raw is a synced wrapper around RawNoSync method
+func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
+	return b.rawWithRetries(method, payload, 0, nil, nil)
 }
 
 func (b *Bot) sendFilesNoSync(method string, files map[string]File, params map[string]string) ([]byte, error) {
@@ -151,13 +169,34 @@ func (b *Bot) sendFilesNoSync(method string, files map[string]File, params map[s
 	return data, extractOk(data)
 }
 
-func (b *Bot) sendFiles(method string, files map[string]File, params map[string]string) ([]byte, error) {
+func (b *Bot) sendFilesWithScheduling(method string, files map[string]File, params map[string]string) ([]byte, error) {
 	if chatID, ok := params["chat_id"]; ok {
 		return b.scheduler.SyncFunc(len(files), chatID, func() ([]byte, error) {
 			return b.sendFilesNoSync(method, files, params)
 		})
 	}
 	return b.sendFilesNoSync(method, files, params)
+}
+
+func (b *Bot) sendFilesWithRetries(method string, files map[string]File, params map[string]string, try int, lastRet []byte, lastError error) ([]byte, error) {
+	if try > b.retries {
+		return lastRet, lastError
+	}
+	ret, err := b.sendFilesWithScheduling(method, files, params)
+	if err != nil {
+		b.OnError(err, nil)
+		var floodErr *FloodError
+		if errors.As(err, &floodErr) {
+			time.Sleep(time.Second * time.Duration(floodErr.RetryAfter))
+		}
+		return b.sendFilesWithRetries(method, files, params, try+1, ret, err)
+	}
+
+	return ret, err
+}
+
+func (b *Bot) sendFiles(method string, files map[string]File, params map[string]string) ([]byte, error) {
+	return b.sendFilesWithRetries(method, files, params, 0, nil, nil)
 }
 
 func addFileToWriter(writer *multipart.Writer, filename, field string, file interface{}) error {
