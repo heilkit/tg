@@ -160,8 +160,10 @@ func (b *Bot) debug(err error) {
 }
 
 // Group returns a new group.
-func (b *Bot) Group() *Group {
-	return &Group{b: b}
+func (b *Bot) Group(middleware ...MiddlewareFunc) *Group {
+	g := &Group{b: b}
+	g.Use(middleware...)
+	return g
 }
 
 // Use adds middleware to the global bot chain.
