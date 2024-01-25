@@ -903,6 +903,29 @@ func (b *Bot) FileByID(fileID string) (File, error) {
 	return resp.Result, nil
 }
 
+// DownloadTemp is a wrapper around Bot.Download
+func (b *Bot) DownloadTemp(file *File, dirAndPattern ...string) (*os.File, error) {
+	dir := ""
+	if len(dirAndPattern) > 0 {
+		dir = dirAndPattern[0]
+	}
+	patten := "*_heilkit_tg"
+	if len(dirAndPattern) > 1 {
+		patten = dirAndPattern[1]
+	}
+	f, err := os.CreateTemp(dir, patten)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := b.Download(file, f.Name()); err != nil {
+		defer os.Remove(f.Name())
+		defer f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
 // Download saves the file from Telegram servers locally.
 // The maximum file size to download is 20 MB.
 // Unless you use b.Local=true with your own API server (limit=2 GB).
