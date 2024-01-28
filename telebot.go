@@ -26,7 +26,10 @@
 //	}
 package tg
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 var (
 	ErrBadRecipient    = errors.New("telebot: recipient is nil")
@@ -147,4 +150,10 @@ type M = map[string]interface{}
 // For example, see ReplyRecipient type.
 func Flag(b bool) *bool {
 	return &b
+}
+
+// EscapeMarkdown helps you to send messages with special symbols, while having ModeMarkdownV2 as ParseMode.
+func EscapeMarkdown(text string) string {
+	replacer := strings.NewReplacer("_", "\\_", "*", "\\*", "[", "\\[", "]", "\\]", "(", "\\(", ")", "\\)", "~", "\\~", "`", "\\`", ">", "\\>", "#", "\\#", "+", "\\+", "-", "\\-", "=", "\\=", "|", "\\|", "{", "\\{", "}", "\\}", ".", "\\.", "!", "\\!")
+	return replacer.Replace(text)
 }
