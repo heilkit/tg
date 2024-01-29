@@ -1,4 +1,4 @@
-// Package telebot is a framework for Telegram bots.
+// Package tg is a framework for Telegram bots.
 //
 // Example:
 //
