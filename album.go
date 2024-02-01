@@ -57,13 +57,21 @@ func (b *Bot) ForwardMessages(to Recipient, messages []Message, opts ...interfac
 	}
 
 	ret := []Message{}
+	toId := to.Recipient()
+	toChat := Chat{}
+	if id, err := strconv.ParseInt(toId, 10, 64); err == nil {
+		toChat.ID = id
+	} else {
+		toChat.Username = toId
+	}
 	// THIS WOULD ALMOST CERTAINLY HAVE BUGS.
 	// FUCK YOU TELEGRAM API, WHY COULDN'T YOU RETURN A LIST OF MESSAGES?
 	for i, msgID := range resp.Result {
 		msg := messages[i]
 		msg.ID = msgID.MessageId
-		msg.Chat = &Chat{ID: chatID}
 		msg.Sender = b.Me
+		toChat := toChat
+		msg.Chat = &toChat
 		msg.ReplyTo = nil
 		msg.OriginalMessageID = messages[i].ID
 
@@ -128,12 +136,20 @@ func (b *Bot) CopyMessages(to Recipient, messages []Message, opts ...interface{}
 	}
 
 	ret := []Message{}
+	toId := to.Recipient()
+	toChat := Chat{}
+	if id, err := strconv.ParseInt(toId, 10, 64); err == nil {
+		toChat.ID = id
+	} else {
+		toChat.Username = toId
+	}
 	// THIS WOULD ALMOST CERTAINLY HAVE BUGS.
 	// FUCK YOU TELEGRAM API, WHY COULDN'T YOU RETURN A LIST OF MESSAGES?
 	for i, msgID := range resp.Result {
 		msg := messages[i]
 		msg.ID = msgID.MessageId
-		msg.Chat = &Chat{ID: chatID}
+		toChat := toChat
+		msg.Chat = &toChat
 		msg.ReplyTo = sendOpts.ReplyTo
 		msg.Sender = b.Me
 
