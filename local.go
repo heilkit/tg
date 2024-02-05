@@ -59,7 +59,7 @@ func (loc localCopying) Download(b *Bot, file *File, dst string) error {
 // LocalMoving the file from local telegram-bot-api storage directory after downloading it.
 // If crossDevice=true on "invalid cross-device link" error perform a local copy and delete the original file afterward.
 func LocalMoving(crossDevice ...bool) Local {
-	if len(crossDevice) > 0 && crossDevice[0] {
+	if len(crossDevice) == 0 || crossDevice[0] {
 		return &localMovingCrossDevice{}
 	}
 	return &localMoving{}
