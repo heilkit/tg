@@ -113,6 +113,7 @@ func (loc localMoving) Download(b *Bot, file *File, dst string) error {
 func move(source, destination string) error {
 	err := os.Rename(source, destination)
 	if err != nil && strings.Contains(err.Error(), "invalid cross-device link") {
+		return moveCrossDevice(source, destination)
 	}
 	return err
 }
