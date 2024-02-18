@@ -54,6 +54,7 @@ func NewBot(pref Settings) (*Bot, error) {
 		parseMode:   pref.ParseMode,
 		client:      client,
 		local:       pref.Local,
+		logger:      pref.Logger,
 		scheduler:   pref.Scheduler,
 		retries:     pref.Retries,
 	}
@@ -92,6 +93,7 @@ type Bot struct {
 	parseMode   ParseMode
 	local       Local
 	scheduler   scheduler.Scheduler
+	logger      Logger
 	stop        chan chan struct{}
 	client      *http.Client
 	stopClient  chan struct{}
@@ -114,7 +116,7 @@ type Settings struct {
 	// It makes ProcessUpdate return after the handler is finished.
 	Synchronous bool
 
-	// Verbose forces bot to log all upcoming requests.
+	// Verbose forces bot to logger all upcoming requests.
 	// Use for debugging purposes only.
 	Verbose bool
 
@@ -144,6 +146,8 @@ type Settings struct {
 
 	// Retries on failed file upload/download requests or 429 (too many requests).
 	Retries int
+
+	Logger Logger
 }
 
 var defaultOnError = func(err error, c Context) {

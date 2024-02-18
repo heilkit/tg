@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -20,12 +19,18 @@ import (
 // RawNoSync lets you call any method of Bot API manually.
 // It also handles API errors, so you only need to unwrap
 // result field from json data.
-func (b *Bot) RawNoSync(method string, payload interface{}) ([]byte, error) {
+func (b *Bot) RawNoSync(method string, payload interface{}) (data []byte, err error) {
 	url := b.URL + "/bot" + b.Token + "/" + method
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
 		return nil, err
+	}
+	if b.logger != nil {
+		rawStart := time.Now()
+		defer func() {
+			b.logger.OnRaw(method, buf.Bytes(), data, err, time.Since(rawStart))
+		}()
 	}
 
 	// Cancel the request immediately without waiting for the timeout  when bot is about to stop.
@@ -56,7 +61,7 @@ func (b *Bot) RawNoSync(method string, payload interface{}) ([]byte, error) {
 	resp.Close = true
 	defer resp.Body.Close()
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, wrapError(err)
 	}
@@ -101,7 +106,26 @@ func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
 	return b.rawWithRetries(method, payload, 0, nil, nil)
 }
 
-func (b *Bot) sendFilesNoSync(method string, files map[string]File, params map[string]string) ([]byte, error) {
+func (b *Bot) sendFilesNoSync(method string, files map[string]File, params map[string]string) (data []byte, err error) {
+	if b.logger != nil {
+		sendFilesStart := time.Now()
+		defer func() {
+			jsonLoosely := func(what any) []byte {
+				ret := []byte("???")
+				if data, err := json.Marshal(what); err == nil {
+					ret = data
+				}
+				return ret
+			}
+
+			payload := map[string]string{
+				"files":  string(jsonLoosely(files)),
+				"params": string(jsonLoosely(params)),
+			}
+			b.logger.OnRaw(method, jsonLoosely(payload), data, err, time.Since(sendFilesStart))
+		}()
+	}
+
 	rawFiles := make(map[string]interface{})
 	for name, f := range files {
 		switch {
@@ -161,7 +185,7 @@ func (b *Bot) sendFilesNoSync(method string, files map[string]File, params map[s
 		return nil, ErrInternal
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	data, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, wrapError(err)
 	}

@@ -1,6 +1,9 @@
 package tg
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // Update object represents an incoming update.
 type Update struct {
@@ -312,7 +315,13 @@ func (b *Bot) ProcessUpdate(u Update) {
 
 func (b *Bot) handle(end string, c Context) bool {
 	if handler, ok := b.handlers[end]; ok {
-		b.runHandler(handler, c)
+		if b.logger != nil {
+			handleStart := time.Now()
+			defer func() {
+				b.logger.OnHandle(end, c, time.Since(handleStart))
+			}()
+			b.runHandler(handler, c)
+		}
 		return true
 	}
 	return false

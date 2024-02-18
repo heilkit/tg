@@ -21,6 +21,7 @@ type Poller interface {
 type LongPoller struct {
 	Limit        int
 	Timeout      time.Duration
+	PollTimeout  time.Duration
 	LastUpdateID int
 
 	// AllowedUpdates contains the update types
@@ -44,6 +45,16 @@ type LongPoller struct {
 
 // Poll does long polling.
 func (p *LongPoller) Poll(b *Bot, dest chan Update, stop chan struct{}) {
+	var ticker *time.Ticker
+	if p.PollTimeout != 0 {
+		ticker = time.NewTicker(p.PollTimeout)
+		defer func() {
+			if ticker != nil {
+				ticker.Stop()
+			}
+		}()
+	}
+
 	for {
 		select {
 		case <-stop:
@@ -54,12 +65,18 @@ func (p *LongPoller) Poll(b *Bot, dest chan Update, stop chan struct{}) {
 		updates, err := b.getUpdates(p.LastUpdateID+1, p.Limit, p.Timeout, p.AllowedUpdates)
 		if err != nil {
 			b.debug(err)
+			if ticker != nil {
+				_ = <-ticker.C
+			}
 			continue
 		}
 
 		for _, update := range updates {
 			p.LastUpdateID = update.ID
 			dest <- update
+		}
+		if ticker != nil {
+			_ = <-ticker.C
 		}
 	}
 }
