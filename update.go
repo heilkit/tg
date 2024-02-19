@@ -257,7 +257,7 @@ func (b *Bot) ProcessUpdate(u Update) {
 				if handler, ok := b.handlers["\f"+unique]; ok {
 					u.Callback.Unique = unique
 					u.Callback.Data = payload
-					b.runHandler(handler, c)
+					b.runHandler(handler, c, unique)
 					return
 				}
 			}
@@ -315,13 +315,7 @@ func (b *Bot) ProcessUpdate(u Update) {
 
 func (b *Bot) handle(end string, c Context) bool {
 	if handler, ok := b.handlers[end]; ok {
-		if b.logger != nil {
-			handleStart := time.Now()
-			defer func() {
-				b.logger.OnHandle(end, c, time.Since(handleStart))
-			}()
-			b.runHandler(handler, c)
-		}
+		b.runHandler(handler, c, end)
 		return true
 	}
 	return false
@@ -361,12 +355,19 @@ func (b *Bot) handleMedia(c Context) bool {
 	return true
 }
 
-func (b *Bot) runHandler(h HandlerFunc, c Context) {
+func (b *Bot) runHandler(h HandlerFunc, c Context, endpoint string) {
 	f := func() {
+		if b.logger != nil {
+			handleStart := time.Now()
+			defer func() {
+				b.logger.OnHandle(endpoint, c, time.Since(handleStart))
+			}()
+		}
 		if err := h(c); err != nil {
 			b.OnError(err, c)
 		}
 	}
+
 	if b.synchronous {
 		f()
 	} else {

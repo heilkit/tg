@@ -368,7 +368,7 @@ func TestBotOnError(t *testing.T) {
 
 	b.runHandler(func(c Context) error {
 		return errors.New("not nil")
-	}, &nativeContext{b: b})
+	}, &nativeContext{b: b}, "TestBotOnError")
 
 	assert.True(t, ok)
 }
