@@ -1,6 +1,6 @@
 # /tg
 
-> Telebot is a great library, now let's make a great framework. 
+> Telebot is a great library, now let's make a great framework.
 
 ### Below you could find original Telebot reference. Could be useful.
 
@@ -286,6 +286,7 @@ p := &tele.Photo{File: tele.FromDisk("chicken.jpg")}
 v := &tele.Video{File: tele.FromURL("http://video.mp4")}
 
 msgs, err := b.SendAlbum(user, tele.Album{p, v})
+
 ```
 
 ### Send options

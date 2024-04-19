@@ -1,4 +1,4 @@
-package video
+package tgvideo
 
 import (
 	"encoding/json"

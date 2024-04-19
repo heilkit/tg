@@ -1,4 +1,4 @@
-package image
+package tgimage
 
 const (
 	convert = "convert"

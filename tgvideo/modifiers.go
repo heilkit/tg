@@ -1,10 +1,11 @@
-package video
+package tgvideo
 
 import (
 	"fmt"
 	"github.com/heilkit/tg"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // Convert is a general purpose VideoModifier, converts a video to h264, could decrease its dimensions.
@@ -73,15 +74,17 @@ func ConvertByCopy(opts ...*Opt) tg.VideoModifier {
 
 		output, err := exec.Command(options.Ffmpeg, "-y",
 			"-i", video.FileLocal,
-			"-vcodec", "copy",
-			"-acodec", "copy",
-			tmpFile.Name()).
-			CombinedOutput()
+			tmpFile.Name(),
+			"-c", "copy",
+		).CombinedOutput()
 		if err != nil {
 			return []string{tmpFile.Name()}, wrapExecError(err, output)
 		}
 
 		video.FileLocal = tmpFile.Name()
+		if index := strings.LastIndex(video.FileName, "."); index != -1 {
+			video.FileName = video.FileName[0:index] + ".mp4"
+		}
 		return []string{tmpFile.Name()}, nil
 	}
 }

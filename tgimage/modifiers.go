@@ -1,4 +1,4 @@
-package image
+package tgimage
 
 import (
 	"fmt"
@@ -42,6 +42,18 @@ func ConvertIfNeeded(opts ...*Opt) tg.ImageModifier {
 		if !isTypeSupported(filename) {
 			return convert(photo)
 		}
+		if stat, err := os.Stat(filename); err != nil || stat.Size() > int64(10*(1<<20)) {
+			return convert(photo)
+		}
+		return nil, nil
+	}
+}
+
+// ConvertIfTooBig tgimage only if it's too big to be a Telegram photo (10MB).
+func ConvertIfTooBig(opts ...*Opt) tg.ImageModifier {
+	convert := Convert(opts...)
+	return func(photo *tg.Photo) (temporaries []string, err error) {
+		filename := photo.FileLocal
 		if stat, err := os.Stat(filename); err != nil || stat.Size() > int64(10*(1<<20)) {
 			return convert(photo)
 		}
