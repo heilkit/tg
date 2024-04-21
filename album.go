@@ -270,6 +270,9 @@ func (f AlbumHandlerFunc) ToHandlerFunc() HandlerFunc {
 	}
 }
 
+// HandleAlbumByTimeOption instructs HandleAlbum function to make up albums by time, not by message grouping.
+const HandleAlbumByTimeOption = 2<<17 + 17
+
 // HandleAlbum opts -- MiddlewareFunc / endpoints (OnPhoto, OnVideo...) -- default=telebot.OnMedia.
 // I.e. bot.HandleAlbum(userHandler, telebot.OnPhoto, telebot.OnVideo, middleware.WhiteList(777)).
 // Sadly, there's no way to define both bot.Handle(telebot.OnPhoto,..) and bot.HandleAlbum(telebot.OnPhoto,..).
@@ -280,10 +283,18 @@ func (b *Bot) HandleAlbum(handler AlbumHandlerFunc, opts ...interface{}) {
 func (g *Group) HandleAlbum(handler AlbumHandlerFunc, opts ...interface{}) {
 	endpoints := make([]interface{}, 0)
 	middlewares := make([]MiddlewareFunc, 0)
+	handleByTime := false
+	delay := time.Second / 2
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case MiddlewareFunc:
 			middlewares = append(middlewares, o)
+		case int:
+			if o == HandleAlbumByTimeOption {
+				handleByTime = true
+			}
+		case time.Duration:
+			delay = o
 		default:
 			endpoints = append(endpoints, o)
 		}
@@ -292,12 +303,14 @@ func (g *Group) HandleAlbum(handler AlbumHandlerFunc, opts ...interface{}) {
 		endpoints = append(endpoints, OnMedia)
 	}
 
-	delay := time.Second / 2
 	var albumHandler handleManager
-	if g.b.synchronous {
+	switch {
+	case handleByTime:
+		albumHandler = newTimeBasedManager(g.b, handler, delay)
+	case g.b.synchronous:
 		albumHandler = newSyncedManager(g.b, handler, delay)
-	} else {
-		albumHandler = newUnsyncedManager(delay, handler)
+	default:
+		albumHandler = newUnsyncedManager(g.b, handler, delay)
 	}
 
 	for _, endpoint := range endpoints {
@@ -313,6 +326,55 @@ type handleManager interface {
 
 var _ handleManager = &syncedManager{}
 var _ handleManager = &unsyncedManager{}
+var _ handleManager = &timeBasedManager{}
+
+func newTimeBasedManager(b *Bot, handler AlbumHandlerFunc, delay time.Duration) handleManager {
+	return &timeBasedManager{
+		bot:     b,
+		fn:      handler,
+		timeout: delay,
+		sync:    &sync.Mutex{},
+		data:    nil,
+	}
+}
+
+type timeBasedManager struct {
+	bot     *Bot
+	fn      AlbumHandlerFunc
+	timeout time.Duration
+	sync    *sync.Mutex
+
+	data []Context
+}
+
+func (mngr *timeBasedManager) add(ctx Context) error {
+	mngr.sync.Lock()
+	defer mngr.sync.Unlock()
+
+	if len(mngr.data) > 0 {
+		mngr.data = append(mngr.data, ctx)
+		return nil
+	}
+
+	mngr.data = append(mngr.data, ctx)
+	go time.AfterFunc(mngr.timeout, func() {
+		mngr.sync.Lock()
+		defer mngr.sync.Unlock()
+		defer func() {
+			if r := recover(); r != nil {
+				mngr.bot.onError(fmt.Errorf("panic at tg.timeBasedManager.fn: %v", r), nil)
+			}
+		}()
+
+		sort.Slice(mngr.data, func(i, j int) bool {
+			return mngr.data[i].Message().ID < mngr.data[j].Message().ID
+		})
+		if err := mngr.fn(mngr.data); err != nil {
+			mngr.bot.OnError(err, mngr.data[0])
+		}
+	})
+	return nil
+}
 
 type syncedManager struct {
 	bot     *Bot
@@ -334,54 +396,51 @@ func newSyncedManager(bot *Bot, fn AlbumHandlerFunc, delay time.Duration) *synce
 	}
 }
 
-func (manager *syncedManager) delayHandling(id string) {
-	go func() {
-		time.Sleep(manager.delay)
-
-		manager.sync.Lock()
-		defer manager.sync.Unlock()
-
-		if len(manager.ctx) == 0 {
-			return
-		}
-
+func (mngr *syncedManager) delayHandling(id string) {
+	go time.AfterFunc(mngr.delay, func() {
+		mngr.sync.Lock()
+		defer mngr.sync.Unlock()
 		defer func() {
 			if r := recover(); r != nil {
-				manager.bot.onError(fmt.Errorf("syncedManager.delayHandling(id) panicked: %v", r), manager.ctx[0])
+				mngr.bot.onError(fmt.Errorf("panic at tg.syncedManager.fn: %v", r), nil)
 			}
 		}()
 
-		if id != manager.current {
+		if len(mngr.ctx) == 0 {
 			return
 		}
 
-		if err := manager.fn(manager.ctx); err != nil {
-			manager.bot.onError(err, manager.ctx[0])
+		if id != mngr.current {
+			return
 		}
 
-		manager.current = ""
-		manager.ctx = nil
-	}()
+		if err := mngr.fn(mngr.ctx); err != nil {
+			mngr.bot.onError(err, mngr.ctx[0])
+		}
+
+		mngr.current = ""
+		mngr.ctx = nil
+	})
 }
 
-func (manager *syncedManager) add(ctx Context) (err error) {
-	manager.sync.Lock()
-	defer manager.sync.Unlock()
+func (mngr *syncedManager) add(ctx Context) (err error) {
+	mngr.sync.Lock()
+	defer mngr.sync.Unlock()
 
 	msg := ctx.Message()
 	id := mediaGroupToId(msg)
-	if manager.current == id {
-		manager.ctx = append(manager.ctx, ctx)
+	if mngr.current == id {
+		mngr.ctx = append(mngr.ctx, ctx)
 		return
 	}
 
-	if len(manager.ctx) != 0 {
-		err = manager.fn(manager.ctx)
+	if len(mngr.ctx) != 0 {
+		err = mngr.fn(mngr.ctx)
 	}
-	manager.current = id
-	manager.ctx = []Context{ctx}
+	mngr.current = id
+	mngr.ctx = []Context{ctx}
 
-	manager.delayHandling(id)
+	mngr.delayHandling(id)
 
 	return
 }
@@ -393,13 +452,15 @@ type handleSchedulerUnit struct {
 
 type unsyncedManager struct {
 	handler         AlbumHandlerFunc
+	bot             *Bot
 	delay           time.Duration
 	unscheduled     map[string]handleSchedulerUnit
 	unscheduledSync *sync.Mutex
 }
 
-func newUnsyncedManager(timeout time.Duration, handler AlbumHandlerFunc) *unsyncedManager {
+func newUnsyncedManager(bot *Bot, handler AlbumHandlerFunc, timeout time.Duration) *unsyncedManager {
 	return &unsyncedManager{
+		bot:             bot,
 		handler:         handler,
 		delay:           timeout,
 		unscheduled:     map[string]handleSchedulerUnit{},
@@ -407,52 +468,51 @@ func newUnsyncedManager(timeout time.Duration, handler AlbumHandlerFunc) *unsync
 	}
 }
 
-func (handleScheduler *unsyncedManager) add(ctx Context) error {
-	handleScheduler.unscheduledSync.Lock()
-	defer handleScheduler.unscheduledSync.Unlock()
+func (mngr *unsyncedManager) add(ctx Context) error {
+	mngr.unscheduledSync.Lock()
+	defer mngr.unscheduledSync.Unlock()
 
 	id := mediaGroupToId(ctx.Message())
-	if unit, ok := handleScheduler.unscheduled[id]; ok {
+	if unit, ok := mngr.unscheduled[id]; ok {
 		unit.ctx = append(unit.ctx, ctx)
 		unit.delays += 1
-		handleScheduler.unscheduled[id] = unit
-		go time.AfterFunc(handleScheduler.delay, func() { handleScheduler.handle(id) })
+		mngr.unscheduled[id] = unit
+		go time.AfterFunc(mngr.delay, func() { mngr.handle(id) })
 		return nil
 	}
 
-	handleScheduler.unscheduled[id] = handleSchedulerUnit{
+	mngr.unscheduled[id] = handleSchedulerUnit{
 		delays: 1,
 		ctx:    []Context{ctx},
 	}
-	go time.AfterFunc(handleScheduler.delay, func() { handleScheduler.handle(id) })
+	go time.AfterFunc(mngr.delay, func() {
+		defer func() {
+			if r := recover(); r != nil {
+				mngr.bot.onError(fmt.Errorf("panic at tg.unsyncedManager.fn: %v", r), nil)
+			}
+		}()
+		mngr.handle(id)
+	})
 
 	return nil
 }
 
-func (handleScheduler *unsyncedManager) handle(id string) {
-	handleScheduler.unscheduledSync.Lock()
-	defer handleScheduler.unscheduledSync.Unlock()
+func (mngr *unsyncedManager) handle(id string) {
+	mngr.unscheduledSync.Lock()
+	defer mngr.unscheduledSync.Unlock()
 
-	unit, ok := handleScheduler.unscheduled[id]
+	unit, ok := mngr.unscheduled[id]
 	if !ok {
 		return
 	}
 	unit.delays -= 1
-	handleScheduler.unscheduled[id] = unit
+	mngr.unscheduled[id] = unit
 
 	if unit.delays == 0 {
-		defer func() {
-			delete(handleScheduler.unscheduled, id)
-			if r := recover(); r != nil {
-				ctx := unit.ctx[0]
-				ctx.Bot().OnError(fmt.Errorf("album handling paniced: %v", r), ctx)
-			}
-		}()
-
 		contexts := unit.ctx
 		sort.Slice(contexts, func(i, j int) bool { return contexts[i].Message().ID < contexts[j].Message().ID })
 
-		if err := handleScheduler.handler(unit.ctx); err != nil {
+		if err := mngr.handler(unit.ctx); err != nil {
 			ctx := unit.ctx[0]
 			ctx.Bot().OnError(err, ctx)
 		}

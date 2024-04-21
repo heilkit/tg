@@ -11,6 +11,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 var env = load("env.json")
@@ -41,6 +42,8 @@ func TestFromDisk(t *testing.T) {
 }
 
 func TestMetadata(t *testing.T) {
+	t.Parallel()
+
 	bot := env.Bot
 	chat := env.Chat
 	msg, err := bot.Send(chat, tgmedia.FromDisk(
@@ -59,6 +62,24 @@ func TestMetadata(t *testing.T) {
 
 	require.Equal(t, "value_1", meta["key_1"])
 	require.Equal(t, "value_2", meta["key_2"])
+}
+
+func TestHandlers(t *testing.T) {
+	bot := env.Bot
+
+	go time.AfterFunc(time.Minute*15, func() {
+		bot.Stop()
+	})
+
+	calls := 0
+	bot.HandleAlbum(func(cs tg.Contexts) error {
+		calls += 1
+		_, e := bot.CopyMessages(cs.Chat(), cs.Messages())
+		return e
+	}, tg.HandleAlbumByTimeOption)
+
+	bot.Start()
+	require.Equal(t, 1, calls)
 }
 
 type envT struct {
