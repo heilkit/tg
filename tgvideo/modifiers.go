@@ -1,6 +1,7 @@
 package tgvideo
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/heilkit/tg"
 	"os"
@@ -15,6 +16,12 @@ func Convert(opts ...*Opt) tg.VideoModifier {
 
 	scaleRule := makeScaleRule(options.Width, options.Height)
 	return func(video *tg.Video) (temporaries []string, err error) {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("tgvideo.Convert: %v", err)
+			}
+		}()
+
 		if video == nil || video.FileLocal == "" {
 			return nil, nil
 		}
@@ -67,6 +74,12 @@ func ConvertByCopy(opts ...*Opt) tg.VideoModifier {
 	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("tgvideo.ConvertByCopy: %v", err)
+			}
+		}()
+
 		tmpFile, err := os.CreateTemp(options.TempDir, "*_heilkit_tg.mp4")
 		if err != nil {
 			return nil, err
@@ -102,21 +115,31 @@ func EnsureMeta(opts ...*Opt) tg.VideoModifier {
 
 // EmbedMetadata into a file before sending.
 // REQUIRES `ffmpeg` on the system, which could be passed via Opt.Convert
-func EmbedMetadata(meta map[string]string, opts ...*Opt) tg.VideoModifier {
+func EmbedMetadata[T any](meta T, opts ...*Opt) tg.VideoModifier {
 	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("tgvideo.EmbedMetadata: %v", err)
+			}
+		}()
+
 		tmpFile, err := os.CreateTemp(options.TempDir, "*_heilkit_tg.mp4")
 		if err != nil {
 			return nil, err
 		}
 		defer tmpFile.Close()
 
-		args := []string{"-y", "-i", video.FileLocal, "-vcodec", "copy", "-acodec", "copy"}
-		for k, v := range meta {
-			args = append(args, "-metadata", fmt.Sprintf("%s='%s'", k, v))
+		args := []string{"-y", "-i", video.FileLocal}
+		metadata, err := json.Marshal(meta)
+		if err != nil {
+			return nil, err
 		}
-		args = append(args, tmpFile.Name())
+		args = append(args, "-metadata", "comment="+string(metadata), "-c", "copy", tmpFile.Name())
+		for _, a := range args {
+			print(a, " ")
+		}
 
 		output, err := exec.Command(options.Ffmpeg, args...).
 			CombinedOutput()
@@ -135,6 +158,12 @@ func ThumbnailFrom(filename string, opts ...*Opt) tg.VideoModifier {
 	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("tgvideo.ThumbnailFrom: %v", err)
+			}
+		}()
+
 		extraFile, err := formatPreview(options.TempDir, options.Convert, filename)
 		if err != nil {
 			return []string{extraFile}, err
@@ -162,6 +191,11 @@ func ThumbnailAt(position interface{}, opts ...*Opt) tg.VideoModifier {
 
 	return func(video *tg.Video) (filename []string, err error) {
 		defer func() {
+			if err != nil {
+				err = fmt.Errorf("tgvideo.ThumbnailAt: %v", err)
+			}
+		}()
+		defer func() {
 			if r := recover(); r != nil {
 				err = fmt.Errorf("ThumbnailAt panicked with %v", err)
 			}
@@ -188,6 +222,12 @@ func Mute(opts ...*Opt) tg.VideoModifier {
 	options := parseOpts(opts...)
 
 	return func(video *tg.Video) (temporaries []string, err error) {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("tgvideo.Mute: %v", err)
+			}
+		}()
+
 		if video == nil || video.FileLocal == "" {
 			return nil, nil
 		}

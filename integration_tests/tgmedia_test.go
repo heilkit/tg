@@ -5,6 +5,7 @@ import (
 	"github.com/heilkit/tg"
 	"github.com/heilkit/tg/scheduler"
 	"github.com/heilkit/tg/tgmedia"
+	"github.com/heilkit/tg/tgvideo"
 	"github.com/stretchr/testify/require"
 	"log"
 	"os"
@@ -37,6 +38,27 @@ func TestFromDisk(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestMetadata(t *testing.T) {
+	bot := env.Bot
+	chat := env.Chat
+	msg, err := bot.Send(chat, tgmedia.FromDisk(
+		"testdata/vid.mp4",
+		tgvideo.ThumbnailAt("0.1"),
+		tgvideo.EmbedMetadata(map[string]string{"key_1": "value_1", "key_2": "value_2"}),
+	))
+	require.NoError(t, err, "testdata/vid.mp4")
+
+	file, err := bot.DownloadTemp(&msg.Video.File)
+	require.NoError(t, err, file.Name())
+	defer os.Remove(file.Name())
+
+	meta, err := tgvideo.ExtractMetadata[map[string]string](file.Name())
+	require.NoError(t, err)
+
+	require.Equal(t, "value_1", meta["key_1"])
+	require.Equal(t, "value_2", meta["key_2"])
 }
 
 type envT struct {

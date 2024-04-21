@@ -17,6 +17,12 @@ func Convert(opts ...*Opt) tg.ImageModifier {
 		resizeArg = fmt.Sprintf("%dx%d>", opt.Height, opt.Width)
 	}
 	return func(photo *tg.Photo) (temporaries []string, err error) {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("tgimage.Convert: %v", err)
+			}
+		}()
+
 		tmp, err := os.CreateTemp(opt.TempDir, "*.jpg")
 		if err != nil {
 			return nil, err

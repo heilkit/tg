@@ -40,6 +40,5 @@ func reactionType(reaction string) string {
 	if utf8.RuneCountInString(reaction) <= 4 {
 		return "emoji"
 	}
-	println(reaction, utf8.RuneCountInString(reaction))
 	return "custom_emoji_id"
 }
