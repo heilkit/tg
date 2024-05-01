@@ -137,9 +137,6 @@ func EmbedMetadata[T any](meta T, opts ...*Opt) tg.VideoModifier {
 			return nil, err
 		}
 		args = append(args, "-metadata", "comment="+string(metadata), "-c", "copy", tmpFile.Name())
-		for _, a := range args {
-			print(a, " ")
-		}
 
 		output, err := exec.Command(options.Ffmpeg, args...).
 			CombinedOutput()
